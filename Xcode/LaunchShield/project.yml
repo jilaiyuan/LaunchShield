@@ -1,0 +1,70 @@
+name: LaunchShield
+options:
+  minimumXcodeGenVersion: 2.38.0
+  createIntermediateGroups: true
+  deploymentTarget:
+    macOS: "12.0"
+packages:
+  AppCore:
+    path: ../../
+configs:
+  Debug: debug
+  Release: release
+targets:
+  LaunchShield:
+    type: application
+    platform: macOS
+    info:
+      path: Configs/MainApp-Info.plist
+    entitlements:
+      path: Configs/MainApp.entitlements
+    sources:
+      - path: MainApp
+      - path: SharedXPC
+    dependencies:
+      - package: AppCore
+        product: Core
+      - package: AppCore
+        product: Services
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.launchshield.app
+      DEVELOPMENT_TEAM: ""
+      CODE_SIGN_STYLE: Automatic
+      ENABLE_HARDENED_RUNTIME: YES
+
+  LaunchShieldHelper:
+    type: tool
+    platform: macOS
+    info:
+      path: Configs/Helper-Info.plist
+    entitlements:
+      path: Configs/Helper.entitlements
+    sources:
+      - path: PrivilegedHelper
+      - path: SharedXPC
+    dependencies:
+      - package: AppCore
+        product: Core
+      - package: AppCore
+        product: Services
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.launchshield.helper
+      DEVELOPMENT_TEAM: ""
+      CODE_SIGN_STYLE: Automatic
+      ENABLE_HARDENED_RUNTIME: YES
+      LD_RUNPATH_SEARCH_PATHS: ""
+
+  LaunchShieldUninstaller:
+    type: tool
+    platform: macOS
+    sources:
+      - path: ../../Sources/UninstallerCLI
+    dependencies:
+      - package: AppCore
+        product: Core
+      - package: AppCore
+        product: Services
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.launchshield.uninstaller
+      DEVELOPMENT_TEAM: ""
+      CODE_SIGN_STYLE: Automatic
