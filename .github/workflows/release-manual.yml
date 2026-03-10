@@ -36,6 +36,13 @@ jobs:
         working-directory: ${{ env.WORKDIR }}
         run: ./Tools/bootstrap_xcode_project.sh
 
+      - name: Normalize project format for Xcode 15.4
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          PBXPROJ="LaunchShield.xcodeproj/project.pbxproj"
+          perl -pi -e 's/objectVersion = 77;/objectVersion = 60;/g' "$PBXPROJ"
+          perl -pi -e 's/compatibilityVersion = \"Xcode 16\\.0\";/compatibilityVersion = \"Xcode 15.0\";/g' "$PBXPROJ"
+
       - name: Create temporary keychain
         env:
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}

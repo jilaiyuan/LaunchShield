@@ -1,6 +1,7 @@
 name: LaunchShield
 options:
   minimumXcodeGenVersion: 2.38.0
+  xcodeVersion: "15.0"
   createIntermediateGroups: true
   deploymentTarget:
     macOS: "12.0"
