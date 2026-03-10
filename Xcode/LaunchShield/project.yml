@@ -19,6 +19,7 @@ targets:
     entitlements:
       path: Configs/MainApp.entitlements
     sources:
+      - path: ../../Sources/App
       - path: MainApp
       - path: SharedXPC
     dependencies:

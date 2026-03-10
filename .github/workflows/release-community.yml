@@ -1,0 +1,94 @@
+name: Manual Community Release (unsigned)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (example: 1.2.0)"
+        required: true
+      make_latest:
+        description: "Mark this release as latest"
+        required: true
+        default: "false"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-14
+    env:
+      WORKDIR: Xcode/LaunchShield
+      VERSION: ${{ github.event.inputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ${{ env.WORKDIR }}
+        run: ./Tools/bootstrap_xcode_project.sh
+
+      - name: Build unsigned app
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          xcodebuild \
+            -project LaunchShield.xcodeproj \
+            -scheme LaunchShield \
+            -configuration Release \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Package unsigned artifacts
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          APP_PATH="build/DerivedData/Build/Products/Release/LaunchShield.app"
+          if [[ ! -d "$APP_PATH" ]]; then
+            echo "LaunchShield.app not found: $APP_PATH"
+            exit 1
+          fi
+
+          mkdir -p build/community/payload/Applications
+          cp -R "$APP_PATH" build/community/payload/Applications/
+
+          pkgbuild \
+            --root build/community/payload \
+            --identifier "com.launchshield.community" \
+            --version "$VERSION" \
+            --install-location "/" \
+            "build/community/LaunchShield-${VERSION}-community.pkg"
+
+          ditto -c -k --sequesterRsrc --keepParent \
+            "$APP_PATH" \
+            "build/community/LaunchShield-${VERSION}-community.zip"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: LaunchShield-${{ env.VERSION }}-community
+          path: |
+            Xcode/LaunchShield/build/community/LaunchShield-${{ env.VERSION }}-community.pkg
+            Xcode/LaunchShield/build/community/LaunchShield-${{ env.VERSION }}-community.zip
+
+      - name: Create Git tag
+        run: |
+          git tag "v${VERSION}-community"
+          git push origin "v${VERSION}-community"
+
+      - name: Create GitHub Release and upload community assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}-community
+          name: LaunchShield v${{ env.VERSION }} Community (Unsigned)
+          draft: false
+          prerelease: false
+          make_latest: ${{ github.event.inputs.make_latest }}
+          files: |
+            Xcode/LaunchShield/build/community/LaunchShield-${{ env.VERSION }}-community.pkg
+            Xcode/LaunchShield/build/community/LaunchShield-${{ env.VERSION }}-community.zip
+          generate_release_notes: true
