@@ -8,12 +8,13 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT_PATH="$ROOT_DIR/LaunchShield.xcodeproj"
 SCHEME_APP="LaunchShield"
 CONFIGURATION="Release"
+VERSION="${VERSION:-1.0.0}"
 BUILD_DIR="$ROOT_DIR/build/release"
 ARCHIVE_PATH="$BUILD_DIR/LaunchShield.xcarchive"
 EXPORT_DIR="$BUILD_DIR/export"
 PAYLOAD_ROOT="$BUILD_DIR/payload"
-UNSIGNED_PKG="$BUILD_DIR/LaunchShield-unsigned.pkg"
-SIGNED_PKG="$BUILD_DIR/LaunchShield.pkg"
+UNSIGNED_PKG="$BUILD_DIR/LaunchShield-${VERSION}-unsigned.pkg"
+SIGNED_PKG="$BUILD_DIR/LaunchShield-${VERSION}.pkg"
 
 : "${DEVELOPMENT_TEAM:?Set DEVELOPMENT_TEAM, e.g. ABCD123456}"
 : "${APPLICATION_SIGNING_IDENTITY:?Set APPLICATION_SIGNING_IDENTITY, e.g. Developer ID Application: Your Name (TEAMID)}"
@@ -71,7 +72,7 @@ cp -R "$APP_PATH" "$PAYLOAD_ROOT/Applications/"
 pkgbuild \
   --root "$PAYLOAD_ROOT" \
   --identifier "com.launchshield.app" \
-  --version "1.0.0" \
+  --version "$VERSION" \
   --install-location "/" \
   "$UNSIGNED_PKG"
 

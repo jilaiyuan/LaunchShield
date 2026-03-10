@@ -1,0 +1,100 @@
+name: Manual Release (pkg)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (example: 1.2.0)"
+        required: true
+      make_latest:
+        description: "Mark this release as latest"
+        required: true
+        default: "true"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-14
+    env:
+      WORKDIR: Xcode/LaunchShield
+      VERSION: ${{ github.event.inputs.version }}
+      NOTARY_PROFILE: launchshield-notary
+      DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
+      APPLICATION_SIGNING_IDENTITY: ${{ secrets.APPLICATION_SIGNING_IDENTITY }}
+      INSTALLER_SIGNING_IDENTITY: ${{ secrets.INSTALLER_SIGNING_IDENTITY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ${{ env.WORKDIR }}
+        run: ./Tools/bootstrap_xcode_project.sh
+
+      - name: Create temporary keychain
+        env:
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+
+      - name: Import signing certificates
+        env:
+          APP_CERT_P12_BASE64: ${{ secrets.APP_CERT_P12_BASE64 }}
+          APP_CERT_P12_PASSWORD: ${{ secrets.APP_CERT_P12_PASSWORD }}
+          INSTALLER_CERT_P12_BASE64: ${{ secrets.INSTALLER_CERT_P12_BASE64 }}
+          INSTALLER_CERT_P12_PASSWORD: ${{ secrets.INSTALLER_CERT_P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          echo "$APP_CERT_P12_BASE64" | base64 --decode > app_cert.p12
+          echo "$INSTALLER_CERT_P12_BASE64" | base64 --decode > installer_cert.p12
+
+          security import app_cert.p12 -k build.keychain -P "$APP_CERT_P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productsign
+          security import installer_cert.p12 -k build.keychain -P "$INSTALLER_CERT_P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productsign
+
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          security find-identity -v -p codesigning build.keychain
+
+      - name: Configure notarytool profile
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          xcrun notarytool store-credentials "$NOTARY_PROFILE" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$DEVELOPMENT_TEAM" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD"
+
+      - name: Build signed notarized pkg
+        working-directory: ${{ env.WORKDIR }}
+        run: ./Tools/package_release.sh
+
+      - name: Upload package as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LaunchShield-${{ env.VERSION }}-pkg
+          path: Xcode/LaunchShield/build/release/LaunchShield-${{ env.VERSION }}.pkg
+
+      - name: Create Git tag
+        run: |
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+
+      - name: Create GitHub Release and upload pkg
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: LaunchShield v${{ env.VERSION }}
+          draft: false
+          prerelease: false
+          make_latest: ${{ github.event.inputs.make_latest }}
+          files: |
+            Xcode/LaunchShield/build/release/LaunchShield-${{ env.VERSION }}.pkg
+          generate_release_notes: true
