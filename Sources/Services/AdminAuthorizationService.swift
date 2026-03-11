@@ -1,4 +1,5 @@
 import Core
+import AppKit
 import Foundation
 import Security
 
@@ -10,7 +11,8 @@ public final class AdminAuthorizationService {
         var authRef: AuthorizationRef?
         let createStatus = AuthorizationCreate(nil, nil, [], &authRef)
         guard createStatus == errAuthorizationSuccess, let authRef else {
-            throw AppError.adminAuthorizationFailedWithStatus(stage: "AuthorizationCreate", status: createStatus)
+            try authorizeAdminViaAppleScript(prompt: prompt, originalStatus: createStatus)
+            return
         }
 
         defer {
@@ -32,7 +34,32 @@ public final class AdminAuthorizationService {
         }
 
         guard copyStatus == errAuthorizationSuccess else {
-            throw AppError.adminAuthorizationFailedWithStatus(stage: "AuthorizationCopyRights", status: copyStatus)
+            try authorizeAdminViaAppleScript(prompt: prompt, originalStatus: copyStatus)
+            return
         }
+    }
+
+    private func authorizeAdminViaAppleScript(prompt: String, originalStatus: OSStatus) throws {
+        let escapedPrompt = prompt
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+
+        let script = """
+        do shell script "echo LaunchShieldAuthOK >/dev/null" with administrator privileges with prompt "\(escapedPrompt)"
+        """
+
+        var errorDict: NSDictionary?
+        guard let appleScript = NSAppleScript(source: script) else {
+            throw AppError.adminAuthorizationFailedWithStatus(stage: "AppleScriptInit", status: originalStatus)
+        }
+
+        let result = appleScript.executeAndReturnError(&errorDict)
+        if let errorDict {
+            let code = (errorDict[NSAppleScript.errorNumber] as? Int).map(OSStatus.init) ?? originalStatus
+            throw AppError.adminAuthorizationFailedWithStatus(stage: "AppleScriptExecute", status: code)
+        }
+
+        // Keep a minor use of result to avoid warnings and assert successful execution.
+        _ = result.stringValue
     }
 }
