@@ -6,8 +6,15 @@ import SwiftUI
 
 @MainActor
 final class AppViewModel: ObservableObject {
+    struct DaySchedule: Sendable {
+        var enabled: Bool
+        var startMinute: Int
+        var endMinute: Int
+    }
+
     @Published var installedApps: [InstalledApp] = []
     @Published var blacklist: Set<String> = []
+    @Published var scheduleByDay: [Weekday: DaySchedule] = [:]
     @Published var password: String = ""
     @Published var confirmPassword: String = ""
     @Published var statusMessage: String = ""
@@ -15,6 +22,7 @@ final class AppViewModel: ObservableObject {
     @Published var isBusy: Bool = false
     @Published var passwordStatusMessage: String = ""
     @Published var blacklistStatusMessage: String = ""
+    @Published var scheduleStatusMessage: String = ""
     @Published var uninstallCommand: String = ""
     @Published var uninstallHint: String = ""
     @Published var uninstallDebugLogPath: String = ""
@@ -52,6 +60,7 @@ final class AppViewModel: ObservableObject {
         hasPassword = passwordService.hasPassword()
         let policy = policyStore.load()
         blacklist = policy.blacklist
+        loadScheduleFromPolicy(policy)
 
         if let executablePath = Bundle.main.executablePath {
             autoLaunchService.ensureEnabled(executablePath: executablePath)
@@ -75,6 +84,48 @@ final class AppViewModel: ObservableObject {
             blacklist.remove(app.id)
         }
         persistBlacklist()
+    }
+
+    func isScheduled(_ day: Weekday) -> Bool {
+        scheduleByDay[day]?.enabled ?? false
+    }
+
+    func setScheduled(_ enabled: Bool, for day: Weekday) {
+        if enabled {
+            let existing = scheduleByDay[day] ?? DaySchedule(enabled: true, startMinute: 540, endMinute: 1_260)
+            scheduleByDay[day] = DaySchedule(
+                enabled: true,
+                startMinute: existing.startMinute,
+                endMinute: max(existing.startMinute + 1, existing.endMinute)
+            )
+        } else {
+            scheduleByDay[day] = DaySchedule(enabled: false, startMinute: 540, endMinute: 1_260)
+        }
+        persistSchedule()
+    }
+
+    func startDate(for day: Weekday) -> Date {
+        dateFromMinuteOfDay(scheduleByDay[day]?.startMinute ?? 540)
+    }
+
+    func endDate(for day: Weekday) -> Date {
+        dateFromMinuteOfDay(scheduleByDay[day]?.endMinute ?? 1_260)
+    }
+
+    func setStartDate(_ date: Date, for day: Weekday) {
+        let start = minuteOfDay(from: date)
+        let current = scheduleByDay[day] ?? DaySchedule(enabled: false, startMinute: 540, endMinute: 1_260)
+        let end = max(start + 1, current.endMinute)
+        scheduleByDay[day] = DaySchedule(enabled: current.enabled, startMinute: start, endMinute: end)
+        persistSchedule()
+    }
+
+    func setEndDate(_ date: Date, for day: Weekday) {
+        let end = max(1, minuteOfDay(from: date))
+        let current = scheduleByDay[day] ?? DaySchedule(enabled: false, startMinute: 540, endMinute: 1_260)
+        let start = min(current.startMinute, max(0, end - 1))
+        scheduleByDay[day] = DaySchedule(enabled: current.enabled, startMinute: start, endMinute: end)
+        persistSchedule()
     }
 
     func createPassword() {
@@ -164,7 +215,9 @@ final class AppViewModel: ObservableObject {
         isBusy = true
         Task {
             do {
-                try policyStore.setBlacklist(blacklist)
+                var policy = policyStore.load()
+                policy.blacklist = blacklist
+                try policyStore.save(policy)
                 await MainActor.run {
                     self.blacklistStatusMessage = "Blacklist saved automatically. Checked = added, unchecked = removed."
                     self.isBusy = false
@@ -176,6 +229,58 @@ final class AppViewModel: ObservableObject {
                 }
             }
         }
+    }
+
+    private func persistSchedule() {
+        isBusy = true
+        Task {
+            do {
+                var policy = policyStore.load()
+                var windows: [Weekday: BlockTimeWindow] = [:]
+                for day in Weekday.allCases {
+                    guard let daySchedule = scheduleByDay[day], daySchedule.enabled else { continue }
+                    guard daySchedule.startMinute < daySchedule.endMinute else { continue }
+                    windows[day] = BlockTimeWindow(startMinute: daySchedule.startMinute, endMinute: daySchedule.endMinute)
+                }
+                policy.schedule = WeeklyBlockSchedule(windows: windows)
+                try policyStore.save(policy)
+                await MainActor.run {
+                    self.scheduleStatusMessage = "Schedule saved automatically."
+                    self.isBusy = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.scheduleStatusMessage = error.localizedDescription
+                    self.isBusy = false
+                }
+            }
+        }
+    }
+
+    private func loadScheduleFromPolicy(_ policy: PolicySnapshot) {
+        var loaded: [Weekday: DaySchedule] = [:]
+        for day in Weekday.allCases {
+            if let window = policy.schedule.windows[day], window.startMinute < window.endMinute {
+                loaded[day] = DaySchedule(enabled: true, startMinute: window.startMinute, endMinute: window.endMinute)
+            } else {
+                loaded[day] = DaySchedule(enabled: false, startMinute: 540, endMinute: 1_260)
+            }
+        }
+        scheduleByDay = loaded
+    }
+
+    private func minuteOfDay(from date: Date) -> Int {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return (components.hour ?? 0) * 60 + (components.minute ?? 0)
+    }
+
+    private func dateFromMinuteOfDay(_ minute: Int) -> Date {
+        let clamped = max(0, min(1_440, minute))
+        var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        components.hour = clamped / 60
+        components.minute = clamped % 60
+        components.second = 0
+        return Calendar.current.date(from: components) ?? Date()
     }
 
     private func promptForRuntimePassword(context: RunningAppContext, completion: @escaping (Bool) -> Void) {

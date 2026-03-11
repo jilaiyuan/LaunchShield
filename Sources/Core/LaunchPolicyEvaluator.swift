@@ -6,7 +6,7 @@ public final class LaunchPolicyEvaluator: @unchecked Sendable {
 
     public init() {}
 
-    public func evaluate(bundleID: String?, pid: Int32, policy: PolicySnapshot) -> LaunchDecision {
+    public func evaluate(bundleID: String?, pid: Int32, policy: PolicySnapshot, now: Date = Date(), calendar: Calendar = .current) -> LaunchDecision {
         guard let bundleID, !bundleID.isEmpty else {
             return .block(reason: .missingBundleID)
         }
@@ -20,6 +20,9 @@ public final class LaunchPolicyEvaluator: @unchecked Sendable {
         }
 
         if policy.blacklist.contains(bundleID) {
+            guard isInActiveBlockWindow(policy: policy, date: now, calendar: calendar) else {
+                return .allow
+            }
             return .block(reason: .blacklisted)
         }
 
@@ -58,5 +61,24 @@ public final class LaunchPolicyEvaluator: @unchecked Sendable {
         permit.consumed = true
         permits[bundleID] = permit
         return true
+    }
+
+    private func isInActiveBlockWindow(policy: PolicySnapshot, date: Date, calendar: Calendar) -> Bool {
+        let calendarWeekday = calendar.component(.weekday, from: date)
+        guard let weekday = Weekday.from(calendarWeekday: calendarWeekday) else {
+            return false
+        }
+
+        guard let window = policy.schedule.windows[weekday] else {
+            return false
+        }
+
+        let hour = calendar.component(.hour, from: date)
+        let minute = calendar.component(.minute, from: date)
+        let minuteOfDay = hour * 60 + minute
+        guard window.startMinute < window.endMinute else {
+            return false
+        }
+        return minuteOfDay >= window.startMinute && minuteOfDay < window.endMinute
     }
 }

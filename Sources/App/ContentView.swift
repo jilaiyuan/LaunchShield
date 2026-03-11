@@ -94,6 +94,56 @@ struct ContentView: View {
                 .padding(.top, 4)
             }
 
+            GroupBox("Blocking Schedule (applies to blacklisted apps)") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Block is active only during enabled day/time windows. Unconfigured days are not blocked.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    ForEach(Weekday.allCases) { day in
+                        HStack(spacing: 10) {
+                            Toggle(day.title, isOn: Binding(
+                                get: { viewModel.isScheduled(day) },
+                                set: { viewModel.setScheduled($0, for: day) }
+                            ))
+                            .frame(width: 180, alignment: .leading)
+
+                            DatePicker(
+                                "Start",
+                                selection: Binding(
+                                    get: { viewModel.startDate(for: day) },
+                                    set: { viewModel.setStartDate($0, for: day) }
+                                ),
+                                displayedComponents: [.hourAndMinute]
+                            )
+                            .labelsHidden()
+                            .disabled(!viewModel.isScheduled(day))
+
+                            Text("to")
+                                .foregroundStyle(.secondary)
+
+                            DatePicker(
+                                "End",
+                                selection: Binding(
+                                    get: { viewModel.endDate(for: day) },
+                                    set: { viewModel.setEndDate($0, for: day) }
+                                ),
+                                displayedComponents: [.hourAndMinute]
+                            )
+                            .labelsHidden()
+                            .disabled(!viewModel.isScheduled(day))
+                        }
+                    }
+
+                    if !viewModel.scheduleStatusMessage.isEmpty {
+                        Text(viewModel.scheduleStatusMessage)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.top, 4)
+            }
+
             GroupBox("Admin Uninstall") {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Use this to generate a full uninstall command for administrators.")
