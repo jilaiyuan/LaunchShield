@@ -16,48 +16,51 @@ struct ContentView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("LaunchShield")
-                .font(.title2)
-                .bold()
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("LaunchShield")
+                        .font(.title2)
+                        .bold()
+                        .id("top-anchor")
 
-            GroupBox("Password") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Unlock password: users must enter this to open blacklisted apps.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                GroupBox("Password") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Unlock password: users must enter this to open blacklisted apps.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
 
-                    SecureField("Enter unlock password", text: $viewModel.password)
-                    SecureField("Confirm unlock password", text: $viewModel.confirmPassword)
+                        SecureField("Enter unlock password", text: $viewModel.password)
+                        SecureField("Confirm unlock password", text: $viewModel.confirmPassword)
 
-                    HStack(spacing: 10) {
-                        Button(viewModel.hasPassword ? "Admin Reset Unlock Password" : "Create Unlock Password") {
-                            if viewModel.hasPassword {
-                                viewModel.resetPasswordUsingAdminMode()
-                            } else {
-                                viewModel.createPassword()
+                        HStack(spacing: 10) {
+                            Button(viewModel.hasPassword ? "Admin Reset Unlock Password" : "Create Unlock Password") {
+                                if viewModel.hasPassword {
+                                    viewModel.resetPasswordUsingAdminMode()
+                                } else {
+                                    viewModel.createPassword()
+                                }
                             }
+
+                            Text(viewModel.hasPassword ? "Unlock password is set" : "Unlock password is not set")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
 
-                        Text(viewModel.hasPassword ? "Unlock password is set" : "Unlock password is not set")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        if !viewModel.passwordStatusMessage.isEmpty {
+                            Text(viewModel.passwordStatusMessage)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
-
-                    if !viewModel.passwordStatusMessage.isEmpty {
-                        Text(viewModel.passwordStatusMessage)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    .padding(.top, 4)
                 }
-                .padding(.top, 4)
-            }
 
-            GroupBox("Blacklist (auto-saved when toggled)") {
-                VStack(spacing: 8) {
-                    Text("Checked = added to blacklist, unchecked = removed. Changes are saved automatically.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                GroupBox("Blacklist (auto-saved when toggled)") {
+                    VStack(spacing: 8) {
+                        Text("Checked = added to blacklist, unchecked = removed. Changes are saved automatically.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
 
                     TextField("Search app name or bundle ID", text: $searchText)
                     List(filteredApps) { app in
@@ -85,20 +88,20 @@ struct ContentView: View {
                         Spacer()
                     }
 
-                    if !viewModel.blacklistStatusMessage.isEmpty {
-                        Text(viewModel.blacklistStatusMessage)
+                        if !viewModel.blacklistStatusMessage.isEmpty {
+                            Text(viewModel.blacklistStatusMessage)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+
+                GroupBox("Blocking Schedule (applies to blacklisted apps)") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Block is active only during enabled day/time windows. Unconfigured days are not blocked.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.top, 4)
-            }
-
-            GroupBox("Blocking Schedule (applies to blacklisted apps)") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Block is active only during enabled day/time windows. Unconfigured days are not blocked.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
 
                     ForEach(Weekday.allCases) { day in
                         HStack(spacing: 10) {
@@ -135,20 +138,20 @@ struct ContentView: View {
                         }
                     }
 
-                    if !viewModel.scheduleStatusMessage.isEmpty {
-                        Text(viewModel.scheduleStatusMessage)
+                        if !viewModel.scheduleStatusMessage.isEmpty {
+                            Text(viewModel.scheduleStatusMessage)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+
+                GroupBox("Admin Uninstall") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Use this to generate a full uninstall command for administrators.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.top, 4)
-            }
-
-            GroupBox("Admin Uninstall") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Use this to generate a full uninstall command for administrators.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
 
                     Toggle("Debug Mode", isOn: Binding(
                         get: { viewModel.isDebugMode },
@@ -176,25 +179,37 @@ struct ContentView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    if viewModel.isDebugMode && !viewModel.uninstallDebugLogPath.isEmpty {
-                        Text("Debug log file:")
+                        if viewModel.isDebugMode && !viewModel.uninstallDebugLogPath.isEmpty {
+                            Text("Debug log file:")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(viewModel.uninstallDebugLogPath)
+                                .textSelection(.enabled)
+                                .font(.system(.caption, design: .monospaced))
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+
+                    if !viewModel.statusMessage.isEmpty {
+                        Text(viewModel.statusMessage)
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Text(viewModel.uninstallDebugLogPath)
-                            .textSelection(.enabled)
-                            .font(.system(.caption, design: .monospaced))
+                    }
+
+                    HStack {
+                        Spacer()
+                        Button("Back to Top") {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                proxy.scrollTo("top-anchor", anchor: .top)
+                            }
+                        }
                     }
                 }
-                .padding(.top, 4)
-            }
-
-            if !viewModel.statusMessage.isEmpty {
-                Text(viewModel.statusMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(20)
         .frame(minWidth: 760, minHeight: 640)
     }
 }
