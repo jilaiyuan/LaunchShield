@@ -23,6 +23,7 @@ final class AppViewModel: ObservableObject {
     private let adminAuthorizationService: AdminAuthorizationService
     private let launchMonitor: LaunchMonitor
     private let uninstallService: UninstallService
+    private var passwordMessageHideWorkItem: DispatchWorkItem?
 
     init(
         policyStore: PolicyStore = PolicyStore(),
@@ -69,36 +70,36 @@ final class AppViewModel: ObservableObject {
 
     func createPassword() {
         guard password == confirmPassword else {
-            passwordStatusMessage = "两次输入的密码不一致。"
+            showPasswordMessage("Passwords do not match.")
             return
         }
 
         do {
             try passwordService.createPassword(password)
             hasPassword = true
-            passwordStatusMessage = "已成功设置解锁密码（用于打开黑名单 App）。"
+            showPasswordMessage("Unlock password has been created successfully.")
             password = ""
             confirmPassword = ""
         } catch {
-            passwordStatusMessage = error.localizedDescription
+            showPasswordMessage(error.localizedDescription)
         }
     }
 
     func resetPasswordUsingAdminMode() {
         guard password == confirmPassword else {
-            passwordStatusMessage = "两次输入的密码不一致。"
+            showPasswordMessage("Passwords do not match.")
             return
         }
 
         do {
             try adminAuthorizationService.authorizeAdmin()
             try passwordService.resetPassword(password)
-            passwordStatusMessage = "已成功重置解锁密码。"
+            showPasswordMessage("Unlock password has been reset successfully.")
             password = ""
             confirmPassword = ""
             hasPassword = true
         } catch {
-            passwordStatusMessage = error.localizedDescription
+            showPasswordMessage(error.localizedDescription)
         }
     }
 
@@ -108,12 +109,15 @@ final class AppViewModel: ObservableObject {
             let challenge = try uninstallService.beginUninstallFlow()
             if FileManager.default.fileExists(atPath: "/Library/PrivilegedHelperTools/com.launchshield.helper") {
                 uninstallCommand = "sudo /Library/PrivilegedHelperTools/com.launchshield.helper uninstall --nonce \(challenge.nonce)"
-                uninstallHint = "生产安装环境：直接执行上面的命令。"
+                uninstallHint = "Installed environment: run the command above directly."
+            } else if let projectRoot = detectProjectRoot() {
+                uninstallCommand = "cd \"\(projectRoot)\" && sudo swift run LaunchShieldHelperDaemon uninstall --nonce \(challenge.nonce)"
+                uninstallHint = "Development environment: project root was auto-detected."
             } else {
-                uninstallCommand = "cd \"<项目根目录>\" && sudo swift run LaunchShieldHelperDaemon uninstall --nonce \(challenge.nonce)"
-                uninstallHint = "开发环境：请在项目根目录执行。出现 command not found 通常是因为 helper 不在 PATH。"
+                uninstallCommand = "sudo swift run LaunchShieldHelperDaemon uninstall --nonce \(challenge.nonce)"
+                uninstallHint = "Development environment: run this from your repository root (where Package.swift exists)."
             }
-            statusMessage = "已生成管理员卸载命令。"
+            statusMessage = "Admin uninstall command has been generated."
         } catch {
             statusMessage = error.localizedDescription
         }
@@ -125,7 +129,7 @@ final class AppViewModel: ObservableObject {
             do {
                 try policyStore.setBlacklist(blacklist)
                 await MainActor.run {
-                    self.blacklistStatusMessage = "黑名单已自动保存。勾选=加入，取消=移除。"
+                    self.blacklistStatusMessage = "Blacklist saved automatically. Checked = added, unchecked = removed."
                     self.isBusy = false
                 }
             } catch {
@@ -162,8 +166,44 @@ final class AppViewModel: ObservableObject {
         do {
             let ok = try passwordService.verify(inputField.stringValue)
             completion(ok)
+            if !ok {
+                showPasswordMessage("Incorrect unlock password.")
+            }
         } catch {
+            showPasswordMessage("Failed to verify unlock password.")
             completion(false)
         }
+    }
+
+    private func showPasswordMessage(_ message: String) {
+        passwordMessageHideWorkItem?.cancel()
+        // Force refresh even if the same message is emitted consecutively.
+        passwordStatusMessage = ""
+        DispatchQueue.main.async {
+            self.passwordStatusMessage = message
+        }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.passwordStatusMessage = ""
+        }
+        passwordMessageHideWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: workItem)
+    }
+
+    private func detectProjectRoot() -> String? {
+        let cwd = FileManager.default.currentDirectoryPath
+        if FileManager.default.fileExists(atPath: "\(cwd)/Package.swift") {
+            return cwd
+        }
+
+        let bundlePath = Bundle.main.bundleURL.path
+        if let range = bundlePath.range(of: "/.build/") {
+            let candidate = String(bundlePath[..<range.lowerBound])
+            if FileManager.default.fileExists(atPath: "\(candidate)/Package.swift") {
+                return candidate
+            }
+        }
+
+        return nil
     }
 }

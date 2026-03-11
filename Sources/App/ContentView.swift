@@ -23,15 +23,15 @@ struct ContentView: View {
 
             GroupBox("Password") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("解锁密码：用户打开黑名单 App 时需要输入。")
+                    Text("Unlock password: users must enter this to open blacklisted apps.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    SecureField("输入解锁密码", text: $viewModel.password)
-                    SecureField("确认解锁密码", text: $viewModel.confirmPassword)
+                    SecureField("Enter unlock password", text: $viewModel.password)
+                    SecureField("Confirm unlock password", text: $viewModel.confirmPassword)
 
                     HStack(spacing: 10) {
-                        Button(viewModel.hasPassword ? "管理员重置解锁密码" : "创建解锁密码") {
+                        Button(viewModel.hasPassword ? "Admin Reset Unlock Password" : "Create Unlock Password") {
                             if viewModel.hasPassword {
                                 viewModel.resetPasswordUsingAdminMode()
                             } else {
@@ -39,7 +39,7 @@ struct ContentView: View {
                             }
                         }
 
-                        Text(viewModel.hasPassword ? "已设置解锁密码" : "尚未设置解锁密码")
+                        Text(viewModel.hasPassword ? "Unlock password is set" : "Unlock password is not set")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -53,13 +53,13 @@ struct ContentView: View {
                 .padding(.top, 4)
             }
 
-            GroupBox("黑名单（勾选后自动加入）") {
+            GroupBox("Blacklist (auto-saved when toggled)") {
                 VStack(spacing: 8) {
-                    Text("勾选即加入黑名单，取消即移除。保存是自动进行的。")
+                    Text("Checked = added to blacklist, unchecked = removed. Changes are saved automatically.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    TextField("搜索 App 名称或 Bundle ID", text: $searchText)
+                    TextField("Search app name or bundle ID", text: $searchText)
                     List(filteredApps) { app in
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
@@ -79,7 +79,7 @@ struct ContentView: View {
                     .frame(minHeight: 320)
 
                     HStack {
-                        Button("刷新应用列表") {
+                        Button("Refresh App List") {
                             viewModel.refreshApplications()
                         }
                         Spacer()
@@ -94,20 +94,20 @@ struct ContentView: View {
                 .padding(.top, 4)
             }
 
-            GroupBox("管理员卸载") {
+            GroupBox("Admin Uninstall") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("用于管理员彻底卸载 LaunchShield。")
+                    Text("Use this to generate a full uninstall command for administrators.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
                     HStack(spacing: 10) {
-                        Button("生成管理员卸载命令") {
+                        Button("Generate Admin Uninstall Command") {
                             viewModel.prepareAdminUninstallCommand()
                         }
                     }
 
                     if !viewModel.uninstallCommand.isEmpty {
-                        Text("请在 Terminal 执行：")
+                        Text("Run in Terminal:")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Text(viewModel.uninstallCommand)
