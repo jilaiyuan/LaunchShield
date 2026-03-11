@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         do {
+            NSApp.activate(ignoringOtherApps: true)
             try adminAuthorizationService.authorizeAdmin(prompt: "Authenticate to quit LaunchShield")
             authorizedQuit = true
             return .terminateNow

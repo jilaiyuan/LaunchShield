@@ -100,6 +100,7 @@ final class AppViewModel: ObservableObject {
         }
 
         do {
+            NSApp.activate(ignoringOtherApps: true)
             try adminAuthorizationService.authorizeAdmin()
             try passwordService.resetPassword(password)
             showPasswordMessage("Unlock password has been reset successfully.")
@@ -113,6 +114,7 @@ final class AppViewModel: ObservableObject {
 
     func prepareAdminUninstallCommand() {
         do {
+            NSApp.activate(ignoringOtherApps: true)
             try adminAuthorizationService.authorizeAdmin(prompt: "Authenticate to prepare full uninstall")
             let challenge = try uninstallService.beginUninstallFlow()
             var debugLines: [String] = []
