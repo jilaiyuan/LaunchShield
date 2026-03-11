@@ -57,7 +57,7 @@ jobs:
         run: |
           xcodebuild \
             -project LaunchShield.xcodeproj \
-            -target LaunchShieldUninstaller \
+            -scheme LaunchShieldUninstaller \
             -configuration Release \
             -destination "platform=macOS" \
             -derivedDataPath build/DerivedData \
