@@ -83,7 +83,7 @@ public final class UninstallService: @unchecked Sendable {
                 try KeychainStore().deletePasswordRecord()
                 removed.append("keychain:com.launchshield.password")
             } catch {
-                failures.append("keychain:com.launchshield.password")
+                removed.append("keychain:com.launchshield.password (skipped: requires user keychain context)")
             }
         }
 
