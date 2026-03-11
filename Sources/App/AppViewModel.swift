@@ -121,32 +121,30 @@ final class AppViewModel: ObservableObject {
         debugLines.append("executablePath=\(Bundle.main.executablePath ?? "nil")")
 
         do {
-            NSApp.activate(ignoringOtherApps: true)
-            debugLines.append("step=authorize_admin_start")
-            try adminAuthorizationService.authorizeAdmin(prompt: "Authenticate to prepare full uninstall")
-            debugLines.append("step=authorize_admin_success")
-
-            let challenge = try uninstallService.beginUninstallFlow()
-            debugLines.append("nonce=\(challenge.nonce)")
-
             if FileManager.default.fileExists(atPath: "/Library/PrivilegedHelperTools/com.launchshield.helper") {
+                debugLines.append("step=installed_helper_detected")
+                let challenge = try uninstallService.beginUninstallFlow()
+                debugLines.append("nonce=\(challenge.nonce)")
                 uninstallCommand = "sudo /Library/PrivilegedHelperTools/com.launchshield.helper uninstall --nonce \(challenge.nonce)"
-                uninstallHint = "Installed environment: run the command above directly."
+                uninstallHint = "Run in Terminal. You will be prompted for admin password by sudo."
                 debugLines.append("mode=installed_helper")
                 debugLines.append("helperPath=/Library/PrivilegedHelperTools/com.launchshield.helper")
             } else if let bundledHelper = detectBundledHelperBinary() {
+                debugLines.append("step=bundled_helper_detected")
+                let challenge = try uninstallService.beginUninstallFlow()
+                debugLines.append("nonce=\(challenge.nonce)")
                 uninstallCommand = "sudo \"\(bundledHelper)\" uninstall --nonce \(challenge.nonce)"
-                uninstallHint = "Using bundled helper binary from the current app build."
+                uninstallHint = "Run in Terminal. sudo will request admin password."
                 debugLines.append("mode=bundled_helper")
                 debugLines.append("helperPath=\(bundledHelper)")
             } else if let projectRoot = detectProjectRoot() {
-                uninstallCommand = "sudo swift run --package-path \"\(projectRoot)\" LaunchShieldHelperDaemon uninstall --nonce \(challenge.nonce)"
-                uninstallHint = "Development environment: package path was auto-detected."
-                debugLines.append("mode=package_path")
+                uninstallCommand = "sudo swift run --package-path \"\(projectRoot)\" LaunchShieldUninstaller full"
+                uninstallHint = "Development environment command. Run in Terminal; sudo will request admin password."
+                debugLines.append("mode=package_path_uninstaller_full")
                 debugLines.append("projectRoot=\(projectRoot)")
             } else {
                 uninstallCommand = ""
-                uninstallHint = "Could not auto-detect project root. Run from your repository root (the folder containing Package.swift): sudo swift run LaunchShieldHelperDaemon uninstall --nonce \(challenge.nonce)"
+                uninstallHint = "Could not auto-detect project root. Run from your repository root: sudo swift run LaunchShieldUninstaller full"
                 debugLines.append("mode=detect_failed")
             }
             debugLines.append("finalCommand=\(uninstallCommand)")
