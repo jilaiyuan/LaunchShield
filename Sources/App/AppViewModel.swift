@@ -23,18 +23,21 @@ final class AppViewModel: ObservableObject {
     private let adminAuthorizationService: AdminAuthorizationService
     private let launchMonitor: LaunchMonitor
     private let uninstallService: UninstallService
+    private let autoLaunchService: AutoLaunchService
     private var passwordMessageHideWorkItem: DispatchWorkItem?
 
     init(
         policyStore: PolicyStore = PolicyStore(),
         passwordService: PasswordService = PasswordService(),
         adminAuthorizationService: AdminAuthorizationService = AdminAuthorizationService(),
-        uninstallService: UninstallService = UninstallService()
+        uninstallService: UninstallService = UninstallService(),
+        autoLaunchService: AutoLaunchService = AutoLaunchService()
     ) {
         self.policyStore = policyStore
         self.passwordService = passwordService
         self.adminAuthorizationService = adminAuthorizationService
         self.uninstallService = uninstallService
+        self.autoLaunchService = autoLaunchService
         self.launchMonitor = LaunchMonitor(policyStore: policyStore)
 
         launchMonitor.onBlockedLaunch = { [weak self] context, completion in
@@ -47,6 +50,10 @@ final class AppViewModel: ObservableObject {
         hasPassword = passwordService.hasPassword()
         let policy = policyStore.load()
         blacklist = policy.blacklist
+
+        if let executablePath = Bundle.main.executablePath {
+            autoLaunchService.ensureEnabled(executablePath: executablePath)
+        }
 
         refreshApplications()
     }
@@ -111,8 +118,8 @@ final class AppViewModel: ObservableObject {
                 uninstallCommand = "sudo /Library/PrivilegedHelperTools/com.launchshield.helper uninstall --nonce \(challenge.nonce)"
                 uninstallHint = "Installed environment: run the command above directly."
             } else if let projectRoot = detectProjectRoot() {
-                uninstallCommand = "cd \"\(projectRoot)\" && sudo swift run LaunchShieldHelperDaemon uninstall --nonce \(challenge.nonce)"
-                uninstallHint = "Development environment: project root was auto-detected."
+                uninstallCommand = "sudo swift run --package-path \"\(projectRoot)\" LaunchShieldHelperDaemon uninstall --nonce \(challenge.nonce)"
+                uninstallHint = "Development environment: package path was auto-detected."
             } else {
                 uninstallCommand = "sudo swift run LaunchShieldHelperDaemon uninstall --nonce \(challenge.nonce)"
                 uninstallHint = "Development environment: run this from your repository root (where Package.swift exists)."
@@ -191,6 +198,15 @@ final class AppViewModel: ObservableObject {
     }
 
     private func detectProjectRoot() -> String? {
+        let sourceFilePath = #filePath
+        let suffix = "/Sources/App/AppViewModel.swift"
+        if sourceFilePath.hasSuffix(suffix) {
+            let candidate = String(sourceFilePath.dropLast(suffix.count))
+            if FileManager.default.fileExists(atPath: "\(candidate)/Package.swift") {
+                return candidate
+            }
+        }
+
         let cwd = FileManager.default.currentDirectoryPath
         if FileManager.default.fileExists(atPath: "\(cwd)/Package.swift") {
             return cwd
