@@ -17,6 +17,7 @@ final class AppViewModel: ObservableObject {
     @Published var blacklistStatusMessage: String = ""
     @Published var uninstallCommand: String = ""
     @Published var uninstallHint: String = ""
+    @Published var uninstallDebugLogPath: String = ""
 
     private let policyStore: PolicyStore
     private let passwordService: PasswordService
@@ -114,19 +115,35 @@ final class AppViewModel: ObservableObject {
         do {
             try adminAuthorizationService.authorizeAdmin(prompt: "Authenticate to prepare full uninstall")
             let challenge = try uninstallService.beginUninstallFlow()
+            var debugLines: [String] = []
+            debugLines.append("time=\(ISO8601DateFormatter().string(from: Date()))")
+            debugLines.append("nonce=\(challenge.nonce)")
+            debugLines.append("cwd=\(FileManager.default.currentDirectoryPath)")
+            debugLines.append("bundlePath=\(Bundle.main.bundlePath)")
+            debugLines.append("executablePath=\(Bundle.main.executablePath ?? "nil")")
+
             if FileManager.default.fileExists(atPath: "/Library/PrivilegedHelperTools/com.launchshield.helper") {
                 uninstallCommand = "sudo /Library/PrivilegedHelperTools/com.launchshield.helper uninstall --nonce \(challenge.nonce)"
                 uninstallHint = "Installed environment: run the command above directly."
+                debugLines.append("mode=installed_helper")
+                debugLines.append("helperPath=/Library/PrivilegedHelperTools/com.launchshield.helper")
             } else if let bundledHelper = detectBundledHelperBinary() {
                 uninstallCommand = "sudo \"\(bundledHelper)\" uninstall --nonce \(challenge.nonce)"
                 uninstallHint = "Using bundled helper binary from the current app build."
+                debugLines.append("mode=bundled_helper")
+                debugLines.append("helperPath=\(bundledHelper)")
             } else if let projectRoot = detectProjectRoot() {
                 uninstallCommand = "sudo swift run --package-path \"\(projectRoot)\" LaunchShieldHelperDaemon uninstall --nonce \(challenge.nonce)"
                 uninstallHint = "Development environment: package path was auto-detected."
+                debugLines.append("mode=package_path")
+                debugLines.append("projectRoot=\(projectRoot)")
             } else {
                 uninstallCommand = ""
                 uninstallHint = "Could not auto-detect project root. Run from your repository root (the folder containing Package.swift): sudo swift run LaunchShieldHelperDaemon uninstall --nonce \(challenge.nonce)"
+                debugLines.append("mode=detect_failed")
             }
+            debugLines.append("finalCommand=\(uninstallCommand)")
+            uninstallDebugLogPath = writeUninstallDebugLog(lines: debugLines) ?? ""
             statusMessage = "Admin uninstall command has been generated."
         } catch {
             statusMessage = error.localizedDescription
@@ -261,5 +278,23 @@ final class AppViewModel: ObservableObject {
             return candidate
         }
         return nil
+    }
+
+    private func writeUninstallDebugLog(lines: [String]) -> String? {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("LaunchShield", isDirectory: true)
+            .appendingPathComponent("logs", isDirectory: true)
+        guard let base else { return nil }
+
+        do {
+            try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+            let fileName = "uninstall_debug_\(Int(Date().timeIntervalSince1970)).log"
+            let url = base.appendingPathComponent(fileName)
+            let body = lines.joined(separator: "\n") + "\n"
+            try body.write(to: url, atomically: true, encoding: .utf8)
+            return url.path
+        } catch {
+            return nil
+        }
     }
 }

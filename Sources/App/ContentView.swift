@@ -120,6 +120,15 @@ struct ContentView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+
+                    if !viewModel.uninstallDebugLogPath.isEmpty {
+                        Text("Debug log file:")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(viewModel.uninstallDebugLogPath)
+                            .textSelection(.enabled)
+                            .font(.system(.caption, design: .monospaced))
+                    }
                 }
                 .padding(.top, 4)
             }
