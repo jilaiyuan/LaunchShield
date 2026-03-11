@@ -11,7 +11,7 @@ public final class AdminAuthorizationService {
         let createFlags: AuthorizationFlags = [.interactionAllowed, .extendRights, .preAuthorize]
         let createStatus = AuthorizationCreate(nil, nil, createFlags, &authRef)
         guard createStatus == errAuthorizationSuccess, let authRef else {
-            throw AppError.adminAuthorizationFailed
+            throw AppError.adminAuthorizationFailedWithStatus(stage: "AuthorizationCreate", status: createStatus)
         }
 
         defer {
@@ -33,7 +33,7 @@ public final class AdminAuthorizationService {
         }
 
         guard copyStatus == errAuthorizationSuccess else {
-            throw AppError.adminAuthorizationFailed
+            throw AppError.adminAuthorizationFailedWithStatus(stage: "AuthorizationCopyRights", status: copyStatus)
         }
     }
 }

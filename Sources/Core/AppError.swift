@@ -6,6 +6,7 @@ public enum AppError: LocalizedError {
     case invalidStoredPasswordRecord
     case keychainOSStatus(OSStatus)
     case adminAuthorizationFailed
+    case adminAuthorizationFailedWithStatus(stage: String, status: OSStatus)
     case uninstallChallengeExpired
     case uninstallChallengeInvalid
     case uninstallRequiresRoot
@@ -23,6 +24,8 @@ public enum AppError: LocalizedError {
             return "Keychain operation failed with status: \(status)."
         case .adminAuthorizationFailed:
             return "Administrator authorization failed."
+        case .adminAuthorizationFailedWithStatus(let stage, let status):
+            return "Administrator authorization failed at \(stage) with OSStatus \(status)."
         case .uninstallChallengeExpired:
             return "Uninstall challenge expired."
         case .uninstallChallengeInvalid:

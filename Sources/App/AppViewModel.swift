@@ -113,16 +113,21 @@ final class AppViewModel: ObservableObject {
     }
 
     func prepareAdminUninstallCommand() {
+        var debugLines: [String] = []
+        let ts = ISO8601DateFormatter().string(from: Date())
+        debugLines.append("time=\(ts)")
+        debugLines.append("cwd=\(FileManager.default.currentDirectoryPath)")
+        debugLines.append("bundlePath=\(Bundle.main.bundlePath)")
+        debugLines.append("executablePath=\(Bundle.main.executablePath ?? "nil")")
+
         do {
             NSApp.activate(ignoringOtherApps: true)
+            debugLines.append("step=authorize_admin_start")
             try adminAuthorizationService.authorizeAdmin(prompt: "Authenticate to prepare full uninstall")
+            debugLines.append("step=authorize_admin_success")
+
             let challenge = try uninstallService.beginUninstallFlow()
-            var debugLines: [String] = []
-            debugLines.append("time=\(ISO8601DateFormatter().string(from: Date()))")
             debugLines.append("nonce=\(challenge.nonce)")
-            debugLines.append("cwd=\(FileManager.default.currentDirectoryPath)")
-            debugLines.append("bundlePath=\(Bundle.main.bundlePath)")
-            debugLines.append("executablePath=\(Bundle.main.executablePath ?? "nil")")
 
             if FileManager.default.fileExists(atPath: "/Library/PrivilegedHelperTools/com.launchshield.helper") {
                 uninstallCommand = "sudo /Library/PrivilegedHelperTools/com.launchshield.helper uninstall --nonce \(challenge.nonce)"
@@ -148,7 +153,13 @@ final class AppViewModel: ObservableObject {
             uninstallDebugLogPath = writeUninstallDebugLog(lines: debugLines) ?? ""
             statusMessage = "Admin uninstall command has been generated."
         } catch {
+            debugLines.append("step=authorize_or_generate_failed")
+            debugLines.append("error=\(error.localizedDescription)")
+            uninstallDebugLogPath = writeUninstallDebugLog(lines: debugLines) ?? ""
             statusMessage = error.localizedDescription
+            if !uninstallDebugLogPath.isEmpty {
+                uninstallHint = "Failed. Please send the debug log file below."
+            }
         }
     }
 
@@ -283,20 +294,32 @@ final class AppViewModel: ObservableObject {
     }
 
     private func writeUninstallDebugLog(lines: [String]) -> String? {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
-            .appendingPathComponent("LaunchShield", isDirectory: true)
-            .appendingPathComponent("logs", isDirectory: true)
-        guard let base else { return nil }
+        let fileName = "uninstall_debug_\(Int(Date().timeIntervalSince1970)).log"
+        let fm = FileManager.default
+        var candidateDirs: [URL] = []
 
-        do {
-            try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
-            let fileName = "uninstall_debug_\(Int(Date().timeIntervalSince1970)).log"
-            let url = base.appendingPathComponent(fileName)
-            let body = lines.joined(separator: "\n") + "\n"
-            try body.write(to: url, atomically: true, encoding: .utf8)
-            return url.path
-        } catch {
-            return nil
+        if let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            candidateDirs.append(
+                appSupport
+                    .appendingPathComponent("LaunchShield", isDirectory: true)
+                    .appendingPathComponent("logs", isDirectory: true)
+            )
         }
+
+        candidateDirs.append(fm.homeDirectoryForCurrentUser.appendingPathComponent("Desktop/LaunchShieldLogs", isDirectory: true))
+        candidateDirs.append(URL(fileURLWithPath: "/tmp/LaunchShieldLogs", isDirectory: true))
+
+        let body = lines.joined(separator: "\n") + "\n"
+        for base in candidateDirs {
+            do {
+                try fm.createDirectory(at: base, withIntermediateDirectories: true)
+                let url = base.appendingPathComponent(fileName)
+                try body.write(to: url, atomically: true, encoding: .utf8)
+                return url.path
+            } catch {
+                continue
+            }
+        }
+        return nil
     }
 }
