@@ -18,6 +18,7 @@ final class AppViewModel: ObservableObject {
     @Published var uninstallCommand: String = ""
     @Published var uninstallHint: String = ""
     @Published var uninstallDebugLogPath: String = ""
+    @Published var isDebugMode: Bool = UserDefaults.standard.bool(forKey: "LaunchShield.DebugMode")
 
     private let policyStore: PolicyStore
     private let passwordService: PasswordService
@@ -143,8 +144,20 @@ final class AppViewModel: ObservableObject {
             debugLines.append("mode=detect_failed")
         }
         debugLines.append("finalCommand=\(uninstallCommand)")
-        uninstallDebugLogPath = writeUninstallDebugLog(lines: debugLines) ?? ""
+        if isDebugMode {
+            uninstallDebugLogPath = writeUninstallDebugLog(lines: debugLines) ?? ""
+        } else {
+            uninstallDebugLogPath = ""
+        }
         statusMessage = "Admin uninstall command has been generated."
+    }
+
+    func setDebugMode(_ enabled: Bool) {
+        isDebugMode = enabled
+        UserDefaults.standard.set(enabled, forKey: "LaunchShield.DebugMode")
+        if !enabled {
+            uninstallDebugLogPath = ""
+        }
     }
 
     private func persistBlacklist() {

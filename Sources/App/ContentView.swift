@@ -100,6 +100,11 @@ struct ContentView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                    Toggle("Debug Mode", isOn: Binding(
+                        get: { viewModel.isDebugMode },
+                        set: { viewModel.setDebugMode($0) }
+                    ))
+
                     HStack(spacing: 10) {
                         Button("Generate Admin Uninstall Command") {
                             viewModel.prepareAdminUninstallCommand()
@@ -115,13 +120,13 @@ struct ContentView: View {
                             .font(.system(.body, design: .monospaced))
                     }
 
-                    if !viewModel.uninstallHint.isEmpty {
+                    if viewModel.isDebugMode && !viewModel.uninstallHint.isEmpty {
                         Text(viewModel.uninstallHint)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
 
-                    if !viewModel.uninstallDebugLogPath.isEmpty {
+                    if viewModel.isDebugMode && !viewModel.uninstallDebugLogPath.isEmpty {
                         Text("Debug log file:")
                             .font(.caption)
                             .foregroundStyle(.secondary)
