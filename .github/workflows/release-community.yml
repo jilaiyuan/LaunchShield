@@ -60,14 +60,16 @@ jobs:
           find build/DerivedData -maxdepth 8 -type d -name "*.app" -print || true
 
           APP_PATH="$(find build/DerivedData -maxdepth 8 -type d -name "LaunchShield.app" -print -quit)"
+          APP_PATH_ABS="$(cd "$(dirname "$APP_PATH")" && pwd)/$(basename "$APP_PATH")"
 
-          echo "Resolved app path: $APP_PATH"
+          echo "Resolved app path: $APP_PATH_ABS"
           if [[ -z "${APP_PATH:-}" || "$APP_PATH" == "/" || ! -d "$APP_PATH" ]]; then
             echo "App bundle not found at resolved path."
             exit 1
           fi
           case "$APP_PATH" in
             "$PWD"/*) ;;
+            build/*) APP_PATH="$APP_PATH_ABS" ;;
             *)
               echo "Resolved app path is outside workspace. Abort for safety."
               exit 1
