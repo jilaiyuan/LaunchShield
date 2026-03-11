@@ -7,6 +7,7 @@ private func printUsage() {
     print("  helper state")
     print("  helper begin-uninstall")
     print("  helper uninstall --nonce <value> [--dry-run]")
+    print("  helper uninstall-direct [--dry-run]")
     print("  helper grace --reason <text>")
     print("  helper recover")
 }
@@ -48,6 +49,25 @@ case "uninstall":
     let dryRun = args.contains("--dry-run")
     do {
         let report = try uninstallService.performFullUninstall(challengeNonce: nonce, requireRoot: true, dryRun: dryRun)
+        print("removed=\(report.removedPaths.count) failures=\(report.failures.count)")
+        if !report.removedPaths.isEmpty {
+            print("removed paths:")
+            report.removedPaths.forEach { print("  \($0)") }
+        }
+        if !report.failures.isEmpty {
+            print("failed paths:")
+            report.failures.forEach { print("  \($0)") }
+            exit(3)
+        }
+    } catch {
+        fputs("error: \(error.localizedDescription)\n", stderr)
+        exit(2)
+    }
+
+case "uninstall-direct":
+    let dryRun = args.contains("--dry-run")
+    do {
+        let report = try uninstallService.performFullUninstallDirect(requireRoot: true, dryRun: dryRun)
         print("removed=\(report.removedPaths.count) failures=\(report.failures.count)")
         if !report.removedPaths.isEmpty {
             print("removed paths:")

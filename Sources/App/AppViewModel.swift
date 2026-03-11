@@ -120,45 +120,31 @@ final class AppViewModel: ObservableObject {
         debugLines.append("bundlePath=\(Bundle.main.bundlePath)")
         debugLines.append("executablePath=\(Bundle.main.executablePath ?? "nil")")
 
-        do {
-            if FileManager.default.fileExists(atPath: "/Library/PrivilegedHelperTools/com.launchshield.helper") {
-                debugLines.append("step=installed_helper_detected")
-                let challenge = try uninstallService.beginUninstallFlow()
-                debugLines.append("nonce=\(challenge.nonce)")
-                uninstallCommand = "sudo /Library/PrivilegedHelperTools/com.launchshield.helper uninstall --nonce \(challenge.nonce)"
-                uninstallHint = "Run in Terminal. You will be prompted for admin password by sudo."
-                debugLines.append("mode=installed_helper")
-                debugLines.append("helperPath=/Library/PrivilegedHelperTools/com.launchshield.helper")
-            } else if let bundledHelper = detectBundledHelperBinary() {
-                debugLines.append("step=bundled_helper_detected")
-                let challenge = try uninstallService.beginUninstallFlow()
-                debugLines.append("nonce=\(challenge.nonce)")
-                uninstallCommand = "sudo \"\(bundledHelper)\" uninstall --nonce \(challenge.nonce)"
-                uninstallHint = "Run in Terminal. sudo will request admin password."
-                debugLines.append("mode=bundled_helper")
-                debugLines.append("helperPath=\(bundledHelper)")
-            } else if let projectRoot = detectProjectRoot() {
-                uninstallCommand = "sudo swift run --package-path \"\(projectRoot)\" LaunchShieldUninstaller full"
-                uninstallHint = "Development environment command. Run in Terminal; sudo will request admin password."
-                debugLines.append("mode=package_path_uninstaller_full")
-                debugLines.append("projectRoot=\(projectRoot)")
-            } else {
-                uninstallCommand = ""
-                uninstallHint = "Could not auto-detect project root. Run from your repository root: sudo swift run LaunchShieldUninstaller full"
-                debugLines.append("mode=detect_failed")
-            }
-            debugLines.append("finalCommand=\(uninstallCommand)")
-            uninstallDebugLogPath = writeUninstallDebugLog(lines: debugLines) ?? ""
-            statusMessage = "Admin uninstall command has been generated."
-        } catch {
-            debugLines.append("step=authorize_or_generate_failed")
-            debugLines.append("error=\(error.localizedDescription)")
-            uninstallDebugLogPath = writeUninstallDebugLog(lines: debugLines) ?? ""
-            statusMessage = error.localizedDescription
-            if !uninstallDebugLogPath.isEmpty {
-                uninstallHint = "Failed. Please send the debug log file below."
-            }
+        if FileManager.default.fileExists(atPath: "/Library/PrivilegedHelperTools/com.launchshield.helper") {
+            debugLines.append("step=installed_helper_detected")
+            uninstallCommand = "sudo /Library/PrivilegedHelperTools/com.launchshield.helper uninstall-direct"
+            uninstallHint = "Run in Terminal. You will be prompted for admin password by sudo."
+            debugLines.append("mode=installed_helper_direct")
+            debugLines.append("helperPath=/Library/PrivilegedHelperTools/com.launchshield.helper")
+        } else if let bundledHelper = detectBundledHelperBinary() {
+            debugLines.append("step=bundled_helper_detected")
+            uninstallCommand = "sudo \"\(bundledHelper)\" uninstall-direct"
+            uninstallHint = "Run in Terminal. sudo will request admin password."
+            debugLines.append("mode=bundled_helper_direct")
+            debugLines.append("helperPath=\(bundledHelper)")
+        } else if let projectRoot = detectProjectRoot() {
+            uninstallCommand = "sudo swift run --package-path \"\(projectRoot)\" LaunchShieldUninstaller full"
+            uninstallHint = "Development environment command. Run in Terminal; sudo will request admin password."
+            debugLines.append("mode=package_path_uninstaller_full")
+            debugLines.append("projectRoot=\(projectRoot)")
+        } else {
+            uninstallCommand = ""
+            uninstallHint = "Could not auto-detect project root. Run from your repository root: sudo swift run LaunchShieldUninstaller full"
+            debugLines.append("mode=detect_failed")
         }
+        debugLines.append("finalCommand=\(uninstallCommand)")
+        uninstallDebugLogPath = writeUninstallDebugLog(lines: debugLines) ?? ""
+        statusMessage = "Admin uninstall command has been generated."
     }
 
     private func persistBlacklist() {

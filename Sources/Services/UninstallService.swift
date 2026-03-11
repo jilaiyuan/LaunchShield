@@ -33,7 +33,14 @@ public final class UninstallService: @unchecked Sendable {
 
     public func performFullUninstall(challengeNonce: String, requireRoot: Bool = true, dryRun: Bool = false) throws -> UninstallReport {
         try challengeService.validateAndConsume(nonce: challengeNonce)
+        return try executeCleanup(requireRoot: requireRoot, dryRun: dryRun, clearChallengeOnSuccess: true)
+    }
 
+    public func performFullUninstallDirect(requireRoot: Bool = true, dryRun: Bool = false) throws -> UninstallReport {
+        try executeCleanup(requireRoot: requireRoot, dryRun: dryRun, clearChallengeOnSuccess: false)
+    }
+
+    private func executeCleanup(requireRoot: Bool, dryRun: Bool, clearChallengeOnSuccess: Bool) throws -> UninstallReport {
         if requireRoot && geteuid() != 0 {
             throw AppError.uninstallRequiresRoot
         }
@@ -82,7 +89,9 @@ public final class UninstallService: @unchecked Sendable {
 
         if failures.isEmpty {
             try? stateStore.setModeNormal()
-            challengeService.clear()
+            if clearChallengeOnSuccess {
+                challengeService.clear()
+            }
         }
 
         return UninstallReport(removedPaths: removed, failures: failures)
