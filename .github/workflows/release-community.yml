@@ -52,6 +52,19 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
 
+      - name: Build unsigned uninstaller tool
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          xcodebuild \
+            -project LaunchShield.xcodeproj \
+            -target LaunchShieldUninstaller \
+            -configuration Release \
+            -destination "platform=macOS" \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
       - name: Package unsigned artifacts
         working-directory: ${{ env.WORKDIR }}
         run: |
@@ -75,6 +88,16 @@ jobs:
               exit 1
               ;;
           esac
+
+          UNINSTALLER_PATH="$(find build/DerivedData -maxdepth 8 -type f -name "LaunchShieldUninstaller" -perm -111 -print -quit)"
+          if [[ -z "${UNINSTALLER_PATH:-}" || ! -x "$UNINSTALLER_PATH" ]]; then
+            echo "LaunchShieldUninstaller binary not found."
+            exit 1
+          fi
+
+          mkdir -p "$APP_PATH/Contents/Helpers"
+          cp "$UNINSTALLER_PATH" "$APP_PATH/Contents/Helpers/LaunchShieldUninstaller"
+          chmod +x "$APP_PATH/Contents/Helpers/LaunchShieldUninstaller"
 
           mkdir -p build/community/payload/Applications
           cp -R "$APP_PATH" build/community/payload/Applications/

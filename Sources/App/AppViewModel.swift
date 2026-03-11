@@ -184,6 +184,12 @@ final class AppViewModel: ObservableObject {
             uninstallHint = "Run in Terminal. sudo will request admin password."
             debugLines.append("mode=bundled_helper_direct")
             debugLines.append("helperPath=\(bundledHelper)")
+        } else if let bundledUninstaller = detectBundledUninstallerBinary() {
+            debugLines.append("step=bundled_uninstaller_detected")
+            uninstallCommand = "sudo \"\(bundledUninstaller)\" full"
+            uninstallHint = "Run in Terminal. sudo will request admin password."
+            debugLines.append("mode=bundled_uninstaller_full")
+            debugLines.append("uninstallerPath=\(bundledUninstaller)")
         } else if let projectRoot = detectProjectRoot() {
             uninstallCommand = "sudo swift run --package-path \"\(projectRoot)\" LaunchShieldUninstaller full"
             uninstallHint = "Development environment command. Run in Terminal; sudo will request admin password."
@@ -386,7 +392,24 @@ final class AppViewModel: ObservableObject {
         let executableDir = URL(fileURLWithPath: executablePath).deletingLastPathComponent()
         let candidates = [
             executableDir.appendingPathComponent("LaunchShieldHelperDaemon").path,
-            executableDir.deletingLastPathComponent().appendingPathComponent("MacOS/LaunchShieldHelperDaemon").path
+            executableDir.deletingLastPathComponent().appendingPathComponent("MacOS/LaunchShieldHelperDaemon").path,
+            executableDir.deletingLastPathComponent().appendingPathComponent("Helpers/LaunchShieldHelperDaemon").path
+        ]
+
+        for candidate in candidates where FileManager.default.isExecutableFile(atPath: candidate) {
+            return candidate
+        }
+        return nil
+    }
+
+    private func detectBundledUninstallerBinary() -> String? {
+        guard let executablePath = Bundle.main.executablePath else { return nil }
+        let executableDir = URL(fileURLWithPath: executablePath).deletingLastPathComponent()
+        let candidates = [
+            executableDir.appendingPathComponent("LaunchShieldUninstaller").path,
+            executableDir.deletingLastPathComponent().appendingPathComponent("MacOS/LaunchShieldUninstaller").path,
+            executableDir.deletingLastPathComponent().appendingPathComponent("Helpers/LaunchShieldUninstaller").path,
+            executableDir.deletingLastPathComponent().appendingPathComponent("Resources/LaunchShieldUninstaller").path
         ]
 
         for candidate in candidates where FileManager.default.isExecutableFile(atPath: candidate) {
