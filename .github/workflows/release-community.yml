@@ -54,9 +54,13 @@ jobs:
       - name: Package unsigned artifacts
         working-directory: ${{ env.WORKDIR }}
         run: |
-          APP_PATH="build/DerivedData/Build/Products/Release/LaunchShield.app"
+          echo "Inspecting build products..."
+          ls -la build/DerivedData/Build/Products || true
+          find build/DerivedData/Build/Products -maxdepth 3 -type d -name "*.app" -print || true
+
+          APP_PATH="$(find build/DerivedData/Build/Products -type d -name "LaunchShield.app" -print -quit)"
           if [[ ! -d "$APP_PATH" ]]; then
-            echo "LaunchShield.app not found: $APP_PATH"
+            echo "LaunchShield.app not found under build/DerivedData/Build/Products"
             exit 1
           fi
 
