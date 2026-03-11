@@ -57,21 +57,28 @@ jobs:
         run: |
           echo "Inspecting build products..."
           ls -la build/DerivedData/Build/Products || true
-          find build/DerivedData/Build/Products -maxdepth 3 -type d -name "*.app" -print || true
+          ls -la build/DerivedData/Build/Products/Release || true
+          find build/DerivedData/Build/Products/Release -maxdepth 3 -type d -name "*.app" -print || true
 
-          BUILD_SETTINGS="$(xcodebuild \
-            -project LaunchShield.xcodeproj \
-            -scheme LaunchShield \
-            -configuration Release \
-            -destination "platform=macOS" \
-            -showBuildSettings)"
+          APP_PATH="$(find build/DerivedData/Build/Products/Release -maxdepth 3 -type d -name "LaunchShield.app" -print -quit)"
 
-          TARGET_BUILD_DIR="$(echo "$BUILD_SETTINGS" | awk -F' = ' '/ TARGET_BUILD_DIR = / {print $2; exit}')"
-          WRAPPER_NAME="$(echo "$BUILD_SETTINGS" | awk -F' = ' '/ WRAPPER_NAME = / {print $2; exit}')"
-          APP_PATH="${TARGET_BUILD_DIR}/${WRAPPER_NAME}"
+          if [[ -z "${APP_PATH:-}" ]]; then
+            BUILD_SETTINGS="$(xcodebuild \
+              -project LaunchShield.xcodeproj \
+              -scheme LaunchShield \
+              -configuration Release \
+              -destination "platform=macOS" \
+              -showBuildSettings)"
+
+            TARGET_BUILD_DIR="$(echo "$BUILD_SETTINGS" | sed -n 's/^[[:space:]]*TARGET_BUILD_DIR = //p' | head -n 1)"
+            WRAPPER_NAME="$(echo "$BUILD_SETTINGS" | sed -n 's/^[[:space:]]*WRAPPER_NAME = //p' | head -n 1)"
+            if [[ -n "${TARGET_BUILD_DIR:-}" && -n "${WRAPPER_NAME:-}" ]]; then
+              APP_PATH="${TARGET_BUILD_DIR}/${WRAPPER_NAME}"
+            fi
+          fi
 
           echo "Resolved app path: $APP_PATH"
-          if [[ ! -d "$APP_PATH" ]]; then
+          if [[ -z "${APP_PATH:-}" || "$APP_PATH" == "/" || ! -d "$APP_PATH" ]]; then
             echo "App bundle not found at resolved path."
             exit 1
           fi
