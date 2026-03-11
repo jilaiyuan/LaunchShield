@@ -13,28 +13,27 @@ final class AppViewModel: ObservableObject {
     @Published var statusMessage: String = ""
     @Published var hasPassword: Bool = false
     @Published var isBusy: Bool = false
-    @Published var protectionStateSummary: String = "Unknown"
+    @Published var passwordStatusMessage: String = ""
+    @Published var blacklistStatusMessage: String = ""
     @Published var uninstallCommand: String = ""
+    @Published var uninstallHint: String = ""
 
     private let policyStore: PolicyStore
     private let passwordService: PasswordService
     private let adminAuthorizationService: AdminAuthorizationService
     private let launchMonitor: LaunchMonitor
     private let uninstallService: UninstallService
-    private let protectionCoordinator: ProtectionCoordinator
 
     init(
         policyStore: PolicyStore = PolicyStore(),
         passwordService: PasswordService = PasswordService(),
         adminAuthorizationService: AdminAuthorizationService = AdminAuthorizationService(),
-        uninstallService: UninstallService = UninstallService(),
-        protectionCoordinator: ProtectionCoordinator = ProtectionCoordinator()
+        uninstallService: UninstallService = UninstallService()
     ) {
         self.policyStore = policyStore
         self.passwordService = passwordService
         self.adminAuthorizationService = adminAuthorizationService
         self.uninstallService = uninstallService
-        self.protectionCoordinator = protectionCoordinator
         self.launchMonitor = LaunchMonitor(policyStore: policyStore)
 
         launchMonitor.onBlockedLaunch = { [weak self] context, completion in
@@ -49,7 +48,6 @@ final class AppViewModel: ObservableObject {
         blacklist = policy.blacklist
 
         refreshApplications()
-        refreshProtectionState()
     }
 
     func refreshApplications() {
@@ -71,51 +69,51 @@ final class AppViewModel: ObservableObject {
 
     func createPassword() {
         guard password == confirmPassword else {
-            statusMessage = "Passwords do not match."
+            passwordStatusMessage = "两次输入的密码不一致。"
             return
         }
 
         do {
             try passwordService.createPassword(password)
             hasPassword = true
-            statusMessage = "Password created."
+            passwordStatusMessage = "已成功设置解锁密码（用于打开黑名单 App）。"
             password = ""
             confirmPassword = ""
         } catch {
-            statusMessage = error.localizedDescription
+            passwordStatusMessage = error.localizedDescription
         }
     }
 
     func resetPasswordUsingAdminMode() {
         guard password == confirmPassword else {
-            statusMessage = "Passwords do not match."
+            passwordStatusMessage = "两次输入的密码不一致。"
             return
         }
 
         do {
             try adminAuthorizationService.authorizeAdmin()
             try passwordService.resetPassword(password)
-            statusMessage = "Password reset successfully."
+            passwordStatusMessage = "已成功重置解锁密码。"
             password = ""
             confirmPassword = ""
             hasPassword = true
         } catch {
-            statusMessage = error.localizedDescription
+            passwordStatusMessage = error.localizedDescription
         }
-    }
-
-    func refreshProtectionState() {
-        let state = protectionCoordinator.refreshState()
-        let grace = state.mode == .grace ? "grace" : "normal"
-        protectionStateSummary = "mode=\(grace), helper=\(state.helperInstalled), agent=\(state.agentInstalled), app=\(state.mainAppPresent)"
     }
 
     func prepareAdminUninstallCommand() {
         do {
             try adminAuthorizationService.authorizeAdmin(prompt: "Authenticate to prepare full uninstall")
             let challenge = try uninstallService.beginUninstallFlow()
-            uninstallCommand = "sudo LaunchShieldHelperDaemon uninstall --nonce \(challenge.nonce)"
-            statusMessage = "Run the generated command in Terminal to complete full uninstall."
+            if FileManager.default.fileExists(atPath: "/Library/PrivilegedHelperTools/com.launchshield.helper") {
+                uninstallCommand = "sudo /Library/PrivilegedHelperTools/com.launchshield.helper uninstall --nonce \(challenge.nonce)"
+                uninstallHint = "生产安装环境：直接执行上面的命令。"
+            } else {
+                uninstallCommand = "cd \"<项目根目录>\" && sudo swift run LaunchShieldHelperDaemon uninstall --nonce \(challenge.nonce)"
+                uninstallHint = "开发环境：请在项目根目录执行。出现 command not found 通常是因为 helper 不在 PATH。"
+            }
+            statusMessage = "已生成管理员卸载命令。"
         } catch {
             statusMessage = error.localizedDescription
         }
@@ -127,12 +125,12 @@ final class AppViewModel: ObservableObject {
             do {
                 try policyStore.setBlacklist(blacklist)
                 await MainActor.run {
-                    self.statusMessage = "Blacklist updated."
+                    self.blacklistStatusMessage = "黑名单已自动保存。勾选=加入，取消=移除。"
                     self.isBusy = false
                 }
             } catch {
                 await MainActor.run {
-                    self.statusMessage = error.localizedDescription
+                    self.blacklistStatusMessage = error.localizedDescription
                     self.isBusy = false
                 }
             }
