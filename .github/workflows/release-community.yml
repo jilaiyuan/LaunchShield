@@ -46,6 +46,7 @@ jobs:
             -project LaunchShield.xcodeproj \
             -scheme LaunchShield \
             -configuration Release \
+            -destination "platform=macOS" \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
@@ -58,9 +59,20 @@ jobs:
           ls -la build/DerivedData/Build/Products || true
           find build/DerivedData/Build/Products -maxdepth 3 -type d -name "*.app" -print || true
 
-          APP_PATH="$(find build/DerivedData/Build/Products -type d -name "LaunchShield.app" -print -quit)"
+          BUILD_SETTINGS="$(xcodebuild \
+            -project LaunchShield.xcodeproj \
+            -scheme LaunchShield \
+            -configuration Release \
+            -destination "platform=macOS" \
+            -showBuildSettings)"
+
+          TARGET_BUILD_DIR="$(echo "$BUILD_SETTINGS" | awk -F' = ' '/ TARGET_BUILD_DIR = / {print $2; exit}')"
+          WRAPPER_NAME="$(echo "$BUILD_SETTINGS" | awk -F' = ' '/ WRAPPER_NAME = / {print $2; exit}')"
+          APP_PATH="${TARGET_BUILD_DIR}/${WRAPPER_NAME}"
+
+          echo "Resolved app path: $APP_PATH"
           if [[ ! -d "$APP_PATH" ]]; then
-            echo "LaunchShield.app not found under build/DerivedData/Build/Products"
+            echo "App bundle not found at resolved path."
             exit 1
           fi
 
