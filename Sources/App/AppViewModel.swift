@@ -117,12 +117,15 @@ final class AppViewModel: ObservableObject {
             if FileManager.default.fileExists(atPath: "/Library/PrivilegedHelperTools/com.launchshield.helper") {
                 uninstallCommand = "sudo /Library/PrivilegedHelperTools/com.launchshield.helper uninstall --nonce \(challenge.nonce)"
                 uninstallHint = "Installed environment: run the command above directly."
+            } else if let bundledHelper = detectBundledHelperBinary() {
+                uninstallCommand = "sudo \"\(bundledHelper)\" uninstall --nonce \(challenge.nonce)"
+                uninstallHint = "Using bundled helper binary from the current app build."
             } else if let projectRoot = detectProjectRoot() {
                 uninstallCommand = "sudo swift run --package-path \"\(projectRoot)\" LaunchShieldHelperDaemon uninstall --nonce \(challenge.nonce)"
                 uninstallHint = "Development environment: package path was auto-detected."
             } else {
-                uninstallCommand = "sudo swift run LaunchShieldHelperDaemon uninstall --nonce \(challenge.nonce)"
-                uninstallHint = "Development environment: run this from your repository root (where Package.swift exists)."
+                uninstallCommand = ""
+                uninstallHint = "Could not auto-detect project root. Run from your repository root (the folder containing Package.swift): sudo swift run LaunchShieldHelperDaemon uninstall --nonce \(challenge.nonce)"
             }
             statusMessage = "Admin uninstall command has been generated."
         } catch {
@@ -198,28 +201,65 @@ final class AppViewModel: ObservableObject {
     }
 
     private func detectProjectRoot() -> String? {
+        if let cwdRoot = findPackageRoot(startingAt: FileManager.default.currentDirectoryPath) {
+            return cwdRoot
+        }
+
+        if let executablePath = Bundle.main.executablePath {
+            let executableDir = URL(fileURLWithPath: executablePath).deletingLastPathComponent().path
+            if let executableRoot = findPackageRoot(startingAt: executableDir) {
+                return executableRoot
+            }
+        }
+
+        let bundlePath = Bundle.main.bundleURL.path
+        if let bundleRoot = findPackageRoot(startingAt: bundlePath) {
+            return bundleRoot
+        }
+
         let sourceFilePath = #filePath
         let suffix = "/Sources/App/AppViewModel.swift"
         if sourceFilePath.hasSuffix(suffix) {
             let candidate = String(sourceFilePath.dropLast(suffix.count))
-            if FileManager.default.fileExists(atPath: "\(candidate)/Package.swift") {
-                return candidate
+            if let sourceRoot = findPackageRoot(startingAt: candidate) {
+                return sourceRoot
             }
         }
 
-        let cwd = FileManager.default.currentDirectoryPath
-        if FileManager.default.fileExists(atPath: "\(cwd)/Package.swift") {
-            return cwd
-        }
+        return nil
+    }
 
-        let bundlePath = Bundle.main.bundleURL.path
-        if let range = bundlePath.range(of: "/.build/") {
-            let candidate = String(bundlePath[..<range.lowerBound])
-            if FileManager.default.fileExists(atPath: "\(candidate)/Package.swift") {
-                return candidate
+    private func findPackageRoot(startingAt path: String) -> String? {
+        var currentURL = URL(fileURLWithPath: path, isDirectory: true)
+        let fm = FileManager.default
+
+        for _ in 0..<16 {
+            let packagePath = currentURL.appendingPathComponent("Package.swift").path
+            if fm.fileExists(atPath: packagePath) {
+                return currentURL.path
             }
+
+            let parent = currentURL.deletingLastPathComponent()
+            if parent.path == currentURL.path || parent.path.isEmpty {
+                break
+            }
+            currentURL = parent
         }
 
+        return nil
+    }
+
+    private func detectBundledHelperBinary() -> String? {
+        guard let executablePath = Bundle.main.executablePath else { return nil }
+        let executableDir = URL(fileURLWithPath: executablePath).deletingLastPathComponent()
+        let candidates = [
+            executableDir.appendingPathComponent("LaunchShieldHelperDaemon").path,
+            executableDir.deletingLastPathComponent().appendingPathComponent("MacOS/LaunchShieldHelperDaemon").path
+        ]
+
+        for candidate in candidates where FileManager.default.isExecutableFile(atPath: candidate) {
+            return candidate
+        }
         return nil
     }
 }
