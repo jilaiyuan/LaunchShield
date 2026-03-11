@@ -8,8 +8,7 @@ public final class AdminAuthorizationService {
     public func authorizeAdmin(prompt: String = "Authenticate to reset LaunchShield password") throws {
         _ = prompt
         var authRef: AuthorizationRef?
-        let createFlags: AuthorizationFlags = [.interactionAllowed, .extendRights, .preAuthorize]
-        let createStatus = AuthorizationCreate(nil, nil, createFlags, &authRef)
+        let createStatus = AuthorizationCreate(nil, nil, [], &authRef)
         guard createStatus == errAuthorizationSuccess, let authRef else {
             throw AppError.adminAuthorizationFailedWithStatus(stage: "AuthorizationCreate", status: createStatus)
         }
