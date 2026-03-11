@@ -12,7 +12,7 @@ configs:
   Debug: debug
   Release: release
 targets:
-  LaunchShield:
+  LaunchShieldApp:
     type: application
     platform: macOS
     info:
@@ -30,6 +30,7 @@ targets:
         product: Services
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.launchshield.app
+      PRODUCT_NAME: LaunchShield
       DEVELOPMENT_TEAM: ""
       CODE_SIGN_STYLE: Automatic
       ENABLE_HARDENED_RUNTIME: YES

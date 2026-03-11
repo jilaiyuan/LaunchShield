@@ -6,7 +6,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT_PATH="$ROOT_DIR/LaunchShield.xcodeproj"
-SCHEME_APP="LaunchShield"
+SCHEME_APP="LaunchShieldApp"
 CONFIGURATION="Release"
 VERSION="${VERSION:-1.0.0}"
 BUILD_DIR="$ROOT_DIR/build/release"

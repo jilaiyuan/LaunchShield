@@ -44,7 +44,7 @@ jobs:
         run: |
           xcodebuild \
             -project LaunchShield.xcodeproj \
-            -scheme LaunchShield \
+            -scheme LaunchShieldApp \
             -configuration Release \
             -destination "platform=macOS" \
             -derivedDataPath build/DerivedData \
@@ -57,31 +57,22 @@ jobs:
         run: |
           echo "Inspecting build products..."
           ls -la build/DerivedData/Build/Products || true
-          ls -la build/DerivedData/Build/Products/Release || true
-          find build/DerivedData/Build/Products/Release -maxdepth 3 -type d -name "*.app" -print || true
+          find build/DerivedData -maxdepth 8 -type d -name "*.app" -print || true
 
-          APP_PATH="$(find build/DerivedData/Build/Products/Release -maxdepth 3 -type d -name "LaunchShield.app" -print -quit)"
-
-          if [[ -z "${APP_PATH:-}" ]]; then
-            BUILD_SETTINGS="$(xcodebuild \
-              -project LaunchShield.xcodeproj \
-              -scheme LaunchShield \
-              -configuration Release \
-              -destination "platform=macOS" \
-              -showBuildSettings)"
-
-            TARGET_BUILD_DIR="$(echo "$BUILD_SETTINGS" | sed -n 's/^[[:space:]]*TARGET_BUILD_DIR = //p' | head -n 1)"
-            WRAPPER_NAME="$(echo "$BUILD_SETTINGS" | sed -n 's/^[[:space:]]*WRAPPER_NAME = //p' | head -n 1)"
-            if [[ -n "${TARGET_BUILD_DIR:-}" && -n "${WRAPPER_NAME:-}" ]]; then
-              APP_PATH="${TARGET_BUILD_DIR}/${WRAPPER_NAME}"
-            fi
-          fi
+          APP_PATH="$(find build/DerivedData -maxdepth 8 -type d -name "LaunchShield.app" -print -quit)"
 
           echo "Resolved app path: $APP_PATH"
           if [[ -z "${APP_PATH:-}" || "$APP_PATH" == "/" || ! -d "$APP_PATH" ]]; then
             echo "App bundle not found at resolved path."
             exit 1
           fi
+          case "$APP_PATH" in
+            "$PWD"/*) ;;
+            *)
+              echo "Resolved app path is outside workspace. Abort for safety."
+              exit 1
+              ;;
+          esac
 
           mkdir -p build/community/payload/Applications
           cp -R "$APP_PATH" build/community/payload/Applications/
@@ -107,8 +98,12 @@ jobs:
 
       - name: Create Git tag
         run: |
-          git tag "v${VERSION}-community"
-          git push origin "v${VERSION}-community"
+          if git rev-parse "v${VERSION}-community" >/dev/null 2>&1; then
+            echo "Tag v${VERSION}-community already exists; skip creating."
+          else
+            git tag "v${VERSION}-community"
+            git push origin "v${VERSION}-community"
+          fi
 
       - name: Create GitHub Release and upload community assets
         uses: softprops/action-gh-release@v2
@@ -122,3 +117,4 @@ jobs:
             Xcode/LaunchShield/build/community/LaunchShield-${{ env.VERSION }}-community.pkg
             Xcode/LaunchShield/build/community/LaunchShield-${{ env.VERSION }}-community.zip
           generate_release_notes: true
+          overwrite_files: true
